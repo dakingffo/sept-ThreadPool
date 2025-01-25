@@ -1,8 +1,8 @@
 #pragma once
 #ifndef SEPT_THREAD_POOL_H
 #define SEPT_THREAD_POOL_H
-#include <vector>
-#include <queue>
+#include <list>
+#include <deque>
 #include <memory>
 #include <chrono>
 #include <thread>
@@ -25,7 +25,8 @@ namespace sept {
 			Mode mode = Mode::fixed,													//set mode
 			std::size_t count3 = std::thread::hardware_concurrency() * 2)				//set default thread size threshold(when cached)
 			: basic_thread_size(count1), thread_list(count1)
-			, queue_size_threshold(count2), mode(mode), thread_size_threshold(count3){}
+			, queue_size_threshold(count2), mode(mode), thread_size_threshold(count3){
+		}
 
 		~ThreadPool() {
 			shut_down();
@@ -40,8 +41,8 @@ namespace sept {
 			if (is_running)
 				return;
 			is_running = true;
-			for (int i = 0; i < basic_thread_size; i++) {
-				thread_list[i] = std::thread(std::bind(&ThreadPool::Get_task, this));
+			for (std::thread& t : thread_list) {
+				t = std::thread(std::bind(&ThreadPool::Get_task, this));
 				thread_size++;
 			}
 		}
@@ -59,12 +60,12 @@ namespace sept {
 			running_thread_count = 0;
 		}
 
-		template<typename Func>
+		template <typename Func>
 		auto submit(Func&& func) {
 			return [&](auto&&...args) -> std::future<decltype(func(args...))> {
 				std::unique_lock<std::mutex> lock(queue_mtx);
 				bool wait_result = queue_not_full.wait_for(lock, std::chrono::seconds(30), [this]() -> bool {
-					return queue_size <= queue_size_threshold;
+					return queue_size < queue_size_threshold;
 					});
 				auto result_ptr = std::make_shared<std::packaged_task<decltype(func(args...))()>>(
 					std::bind(std::forward<Func>(func), std::forward<decltype(args)>(args)...)
@@ -130,8 +131,8 @@ namespace sept {
 						if(--queue_size)
 							queue_ready.notify_all();
 					}
-					queue_not_full.notify_all();
 				}
+				queue_not_full.notify_all();
 				if (task) {
 					running_thread_count++;
 					task();
@@ -173,7 +174,7 @@ namespace sept {
 
 	private:
 		Mode mode;
-		std::vector<std::thread> thread_list;
+		std::list<std::thread> thread_list;
 		std::size_t basic_thread_size;
 		std::size_t thread_size_threshold;
 		std::atomic_uint thread_size = 0;
