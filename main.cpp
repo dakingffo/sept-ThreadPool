@@ -1,7 +1,7 @@
 #include <iostream>
-#include <cmath>
 #include <vector>
 #include "thread_pool.h"
+
 void print(int idx) {					//test1:no return function 
 	std::cout << "hello world from task" << idx << std::endl;
 }
