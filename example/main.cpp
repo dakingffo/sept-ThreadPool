@@ -30,11 +30,11 @@ int main() {
 		}
 		thread_pool.shut_down();		//shut_down after all tasks done
 		std::cout << "----------------------test2----------------------" << std::endl;
-		thread_pool.run();
 		std::vector<std::future<unsigned long long>> res(100);
 		for (int i = 0; i < 100; i++) {
 			res[i] = thread_pool.submit(fib)(i);
 		}
+		thread_pool.run();
 		for (int i = 0; i < 100; i++) {
 			std::cout << res[i].get() << ' ';
 		}
