@@ -25,13 +25,13 @@ As you can see, it is defined in the **sept** namespace and is a thread pool wit
 
 这是一个单头文件的库，这意味着你仅仅需要下载.h文件，配置包含路径后`#include "ThreadPool.h"`，然后就可以正常工作。
 
-用于测试的example代码位于对应的文件夹中，后续将提供Cmake文件以构建项目代码。
+用于测试的example代码位于对应的文件夹中，后续将提供CMake文件以构建项目代码。
 
 >Development environment: Windows IDE: visual studio 2022 Standard: C++14. The testing environment is the same.
 
 This is a single-header file library, which means you only need to download the .h file, configure the include path with `#include "ThreadPool.h"`, and then it will work normally.
 
-The example code for testing is located in the corresponding folder, and a Cmake file will be provided later to build the project code.
+The example code for testing is located in the corresponding folder, and a CMake file will be provided later to build the project code.
 ## About ThreadPool
 ### constructor/destructor
 ```
