@@ -20,10 +20,10 @@ namespace sept {
 		};
 
 	public:
-		explicit ThreadPool(std::size_t count1 = std::thread::hardware_concurrency(),	//set default thread size
-			std::size_t count2 = default_queue_size_threshold,							//set default task size threshold
+		explicit ThreadPool(std::size_t count1 = std::thread::hardware_concurrency(),	//set basic thread size
+			std::size_t count2 = default_queue_size_threshold,							//set task size threshold
 			Mode mode = Mode::fixed,													//set mode
-			std::size_t count3 = std::thread::hardware_concurrency() * 2)				//set default thread size threshold(when cached)
+			std::size_t count3 = std::thread::hardware_concurrency() * 2)				//set thread size threshold(when cached)
 			: basic_thread_size(count1), thread_list(count1)
 			, queue_size_threshold(count2), mode(mode), thread_size_threshold(count3){
 		}
@@ -41,8 +41,8 @@ namespace sept {
 			if (is_running)
 				return;
 			is_running = true;
-			for (std::thread& t : thread_list) {
-				t = std::thread(std::bind(&ThreadPool::Get_task, this));
+			for (int i = 0; i < basic_thread_size; i++) {
+				thread_list.emplace_back(std::thread(std::bind(&ThreadPool::Get_task, this)));
 				thread_size++;
 			}
 		}
@@ -53,9 +53,9 @@ namespace sept {
 			is_running = false;
 			queue_ready.notify_all();
 			for (std::thread& t : thread_list)
-				t.join();
-			if (mode == Mode::cached)
-				thread_list.resize(basic_thread_size);
+				if(t.joinable())
+					t.join();
+			thread_list.clear();
 			thread_size = basic_thread_size;
 			running_thread_count = 0;
 		}
@@ -70,6 +70,7 @@ namespace sept {
 				auto result_ptr = std::make_shared<std::packaged_task<decltype(func(args...))()>>(
 					std::bind(std::forward<Func>(func), std::forward<decltype(args)>(args)...)
 				);
+
 				if (wait_result) {
 					task_queue.emplace_back([result_ptr]() -> void {
 						(*result_ptr)();
@@ -93,45 +94,45 @@ namespace sept {
 			std::function<void()> task{};
 			auto last_time = std::chrono::high_resolution_clock().now();
 			while (true) {
-				{
-					std::unique_lock<std::mutex> lock(queue_mtx);
-					while (!queue_size) {
-						if (!is_running)
-							return;
-						switch (mode) {
-						case Mode::fixed: {
-							queue_ready.wait(lock, [this]() -> bool {
-								return queue_size || !is_running;
-								});
-							break;
-						}
-						case Mode::cached: {
-							if (!queue_ready.wait_for(lock, std::chrono::seconds(1), [this]() -> bool {
-								return queue_size || !is_running;
-								})) {
-								auto now_time = std::chrono::high_resolution_clock().now();
-								auto during = std::chrono::duration_cast<std::chrono::seconds>(now_time - last_time);
-								if (thread_size == basic_thread_size || during.count() <= max_thread_idle_time)
-									break;
-								for (auto it = thread_list.begin(); it != thread_list.end(); it++)
-									if ((*it).get_id() == std::this_thread::get_id()) {
-										(*it).detach();
-										thread_list.erase(it);
-										thread_size--;
-										return;
-									}
-							}
-							break;
-						}
-						}
+			{
+				std::unique_lock<std::mutex> lock(queue_mtx);
+				while (!queue_size) {
+					if (!is_running)
+						return;
+					switch (mode) {
+					case Mode::fixed: {
+						queue_ready.wait(lock, [this]() -> bool {
+							return queue_size || !is_running;
+							});
+						break;
 					}
-					if (queue_size) {
-						task = std::move(task_queue.front());
-						task_queue.pop_front();
-						if(--queue_size)
-							queue_ready.notify_all();
+					case Mode::cached: {
+						if (!queue_ready.wait_for(lock, std::chrono::seconds(1), [this]() -> bool {
+							return queue_size || !is_running;
+							})) {
+							auto now_time = std::chrono::high_resolution_clock().now();
+							auto during = std::chrono::duration_cast<std::chrono::seconds>(now_time - last_time);
+							if (thread_size <= basic_thread_size || during.count() <= max_thread_idle_time)
+								break;
+							for (auto it = thread_list.begin(); it != thread_list.end(); it++)
+								if ((*it).get_id() == std::this_thread::get_id()) {
+									(*it).detach();
+									thread_list.erase(it);
+									thread_size--;
+									return;
+								}
+						}
+						break;
+					}
 					}
 				}
+				if (queue_size) {
+					task = std::move(task_queue.front());
+					task_queue.pop_front();
+					if(--queue_size)
+						queue_ready.notify_all();
+				}
+			}
 				queue_not_full.notify_all();
 				if (task) {
 					running_thread_count++;
