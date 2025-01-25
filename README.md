@@ -200,9 +200,9 @@ void shut_down() {
 如果`is_running == true`，那么返回false，不做任何事；否则返回true。
 ## Test
 1. output (fixed)
-2. return unsigned long long (fixed)
-3. return int (cached)
-4. return int (cached && submit before run)
+2. return unsigned long long (fixed && submit before run)
+3. output (cached)
+4. return int (cached)
 
 refer to example/main.cpp for details
 
