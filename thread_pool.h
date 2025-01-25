@@ -77,9 +77,8 @@ namespace sept {
 						});
 					queue_size++;
 					queue_ready.notify_one();
-					if (mode == Mode::cached 
-						&& queue_size > thread_size - running_thread_count 
-						&& thread_size < thread_size_threshold) {
+					if (mode == Mode::cached && queue_size > thread_size - running_thread_count 
+						&& thread_size < thread_size_threshold && basic_thread_size <= thread_size) {
 						thread_list.emplace_back(std::thread(std::bind(&ThreadPool::Get_task, this)));
 						thread_size++;
 					}
@@ -112,7 +111,7 @@ namespace sept {
 							})) {
 							auto now_time = std::chrono::high_resolution_clock().now();
 							auto during = std::chrono::duration_cast<std::chrono::seconds>(now_time - last_time);
-							if (thread_size <= basic_thread_size || during.count() <= max_thread_idle_time)
+							if (thread_size == basic_thread_size || during.count() <= max_thread_idle_time)
 								break;
 							for (auto it = thread_list.begin(); it != thread_list.end(); it++)
 								if ((*it).get_id() == std::this_thread::get_id()) {
