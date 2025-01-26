@@ -130,19 +130,20 @@ void Get_task() {
 ### submit()
 ```
 template <typename Func>
+template <typename Func>
 auto submit(Func&& func) {
 	return [&](auto&&...args) -> std::future<decltype(func(args...))> {
 		std::unique_lock<std::mutex> lock(queue_mtx);
 		bool wait_result = queue_not_full.wait_for(lock, std::chrono::seconds(30), [this]() -> bool {
 			return queue_size < queue_size_threshold;
 			});
-		auto result_ptr = std::make_shared<std::packaged_task<decltype(func(args...))()>>(
+		auto* result_ptr = new std::packaged_task<decltype(func(args...))()>(
 			std::bind(std::forward<Func>(func), std::forward<decltype(args)>(args)...)
 		);
-
 		if (wait_result) {
 			task_queue.emplace_back([result_ptr]() -> void {
 				(*result_ptr)();
+				delete result_ptr;
 				});
 			queue_size++;
 			queue_ready.notify_one();
@@ -167,8 +168,8 @@ auto submit(Func&& func) {
 在cached模式下，当任务数量多于空余线程数量时，会动态增长thread_list，多于线程的回收由`Get_task()`执行。
 
 `submit()`返回的lambda函数体会按引用捕获可执行对象func，获取任务队列的互斥锁，调用std::bind()，以`std::forward<Func>`,`std::forward<decltype(args)>`保证完美转发。
-进而包装成一个位于堆上的std::packaged_task，以确保这个任务的生命周期。std::shared_ptr会获得任务的地址，这是一个RAII机制的智能指针，因此对堆上对象的内存管理是安全的。
-最后lambda按值捕获并执行这个指针，这个lambda会被放入任务队列(这是因为任务队列储存的是function<void()>类型)。
+进而包装成一个位于堆上的std::packaged_task，以确保这个任务的生命周期。
+最后lambda按值捕获并执行这个指针然后释放它，这个lambda会被放入任务队列(这是因为任务队列储存的是function<void()>类型)。
 
 等待30秒后提交任务的线程仍被阻塞则会导致异常：
 [[noreturn]] static void Submit_error() {
