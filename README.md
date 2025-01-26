@@ -139,15 +139,15 @@ auto submit(Func&& func) {
 		auto result_ptr = std::make_shared<std::packaged_task<decltype(func(args...))()>>(
 			std::bind(std::forward<Func>(func), std::forward<decltype(args)>(args)...)
 		);
+
 		if (wait_result) {
 			task_queue.emplace_back([result_ptr]() -> void {
 				(*result_ptr)();
 				});
 			queue_size++;
 			queue_ready.notify_one();
-			if (mode == Mode::cached 
-				&& queue_size > thread_size - running_thread_count 
-				&& thread_size < thread_size_threshold) {
+			if (mode == Mode::cached && queue_size > thread_size - running_thread_count 
+				&& thread_size < thread_size_threshold && basic_thread_size <= thread_size) {
 				thread_list.emplace_back(std::thread(std::bind(&ThreadPool::Get_task, this)));
 				thread_size++;
 			}
