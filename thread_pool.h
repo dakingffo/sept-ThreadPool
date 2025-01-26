@@ -67,13 +67,13 @@ namespace sept {
 				bool wait_result = queue_not_full.wait_for(lock, std::chrono::seconds(30), [this]() -> bool {
 					return queue_size < queue_size_threshold;
 					});
-				auto result_ptr = std::make_shared<std::packaged_task<decltype(func(args...))()>>(
+				auto* result_ptr = new std::packaged_task<decltype(func(args...))()>(
 					std::bind(std::forward<Func>(func), std::forward<decltype(args)>(args)...)
 				);
-
 				if (wait_result) {
 					task_queue.emplace_back([result_ptr]() -> void {
 						(*result_ptr)();
+						delete result_ptr;
 						});
 					queue_size++;
 					queue_ready.notify_one();
